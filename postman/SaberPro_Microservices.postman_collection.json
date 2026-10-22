@@ -1,0 +1,243 @@
+{
+  "info": {
+    "name": "SaberPro Microservices - Taller 09",
+    "description": "Colección de pruebas síncronas (REST) y asíncronas (RabbitMQ) para el Banco de Preguntas Saber PRO - Taller 09 Comunicaciones Síncronas y Asíncronas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "user_service_url", "value": "http://localhost:8081" },
+    { "key": "validation_service_url", "value": "http://localhost:8082" },
+    { "key": "question_service_url", "value": "http://localhost:8083" },
+    { "key": "lifecycle_service_url", "value": "http://localhost:8084" },
+    { "key": "review_service_url", "value": "http://localhost:8085" },
+    { "key": "notification_service_url", "value": "http://localhost:8086" },
+    { "key": "authToken", "value": "" },
+    { "key": "questionId", "value": "" },
+    { "key": "operationId", "value": "" },
+    { "key": "reviewId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - User Service",
+      "item": [
+        {
+          "name": "Login con credenciales válidas",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('authenticated = true', () => pm.expect(pm.response.json().authenticated).to.eql(true));",
+            "pm.collectionVariables.set('authToken', pm.response.json().token);"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"username\": \"docente1\",\n  \"password\": \"Docente123!\"\n}"},
+            "url": "{{user_service_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Login con credenciales incorrectas",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));",
+            "pm.test('authenticated = false', () => pm.expect(pm.response.json().authenticated).to.eql(false));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"username\": \"docente1\",\n  \"password\": \"clave-incorrecta\"\n}"},
+            "url": "{{user_service_url}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Validation Service",
+      "item": [
+        {
+          "name": "Validar pregunta estructuralmente correcta",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('valid = true', () => pm.expect(pm.response.json().valid).to.eql(true));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"enunciado\": \"¿Cuál es la capital de Colombia?\",\n  \"opciones\": [\"Medellín\", \"Bogotá\", \"Cali\", \"Cartagena\"],\n  \"correctOptionIndex\": 1\n}"},
+            "url": "{{validation_service_url}}/validate"
+          }
+        },
+        {
+          "name": "Validar pregunta inválida (solo 2 opciones)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('valid = false', () => pm.expect(pm.response.json().valid).to.eql(false));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"enunciado\": \"Pregunta incompleta\",\n  \"opciones\": [\"A\", \"B\"],\n  \"correctOptionIndex\": 0\n}"},
+            "url": "{{validation_service_url}}/validate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Question Service",
+      "item": [
+        {
+          "name": "Crear pregunta válida (DRAFT)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+            "pm.test('status = DRAFT', () => pm.expect(pm.response.json().status).to.eql('DRAFT'));",
+            "pm.collectionVariables.set('questionId', pm.response.json().id);"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"enunciado\": \"¿Cuál de las siguientes es una fuente de energía renovable?\",\n  \"opciones\": [\"Carbón\", \"Petróleo\", \"Energía solar\", \"Gas natural\"],\n  \"correctOptionIndex\": 2,\n  \"clasificacion\": \"Razonamiento Cuantitativo\"\n}"},
+            "url": "{{question_service_url}}/questions"
+          }
+        },
+        {
+          "name": "Crear pregunta inválida (se informa error)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"enunciado\": \"\",\n  \"opciones\": [\"A\", \"B\", \"C\"],\n  \"correctOptionIndex\": 5\n}"},
+            "url": "{{question_service_url}}/questions"
+          }
+        },
+        {
+          "name": "Enviar pregunta a revisión (202 Accepted, asíncrono)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+            "pm.test('status = PROCESSING', () => pm.expect(pm.response.json().status).to.eql('PROCESSING'));",
+            "pm.collectionVariables.set('operationId', pm.response.json().operationId);"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{question_service_url}}/questions/{{questionId}}/submit"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Lifecycle Service",
+      "item": [
+        {
+          "name": "Consultar resultado de operación asíncrona (submit)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK (ya procesada) o 202 (pendiente)', () => [200,202].includes(pm.response.code));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "GET",
+            "url": "{{lifecycle_service_url}}/operations/{{operationId}}"
+          }
+        },
+        {
+          "name": "Consultar estado actual de la pregunta",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('state = PENDING_REVIEW', () => pm.expect(pm.response.json().state).to.eql('PENDING_REVIEW'));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "GET",
+            "url": "{{lifecycle_service_url}}/lifecycle/{{questionId}}"
+          }
+        },
+        {
+          "name": "Aprobar una pregunta en DRAFT (transición rechazada)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"targetState\": \"APPROVED\",\n  \"changedBy\": \"tester\",\n  \"comment\": \"Intento inválido para probar rechazo de transición\"\n}"},
+            "url": "{{lifecycle_service_url}}/lifecycle/999999/transition"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Review Service",
+      "item": [
+        {
+          "name": "Asignar revisor a pregunta elegible (PENDING_REVIEW)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('reviewId', pm.response.json().reviewId);"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"questionId\": {{questionId}},\n  \"reviewerId\": 3\n}"},
+            "url": "{{review_service_url}}/reviews/assign"
+          }
+        },
+        {
+          "name": "Rechazar pregunta en IN_REVIEW",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('status = REJECTED', () => pm.expect(pm.response.json().status).to.eql('REJECTED'));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"decision\": \"REJECTED\",\n  \"comments\": \"La opción 3 tiene ambigüedad con la respuesta correcta.\"\n}"},
+            "url": "{{review_service_url}}/reviews/{{reviewId}}/decision"
+          }
+        },
+        {
+          "name": "Corregir pregunta rechazada (reenviar a revisión)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('state = PENDING_REVIEW', () => pm.expect(pm.response.json().state).to.eql('PENDING_REVIEW'));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"targetState\": \"PENDING_REVIEW\",\n  \"changedBy\": \"docente1\",\n  \"comment\": \"Pregunta corregida, se reenvía a revisión.\"\n}"},
+            "url": "{{lifecycle_service_url}}/lifecycle/{{questionId}}/transition"
+          }
+        },
+        {
+          "name": "Asignar revisor a pregunta NO elegible (falla controlada)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"questionId\": 999999,\n  \"reviewerId\": 3\n}"},
+            "url": "{{review_service_url}}/reviews/assign"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Notification Service",
+      "item": [
+        {
+          "name": "Listar notificaciones procesadas (evidencia async)",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript"}}],
+          "request": {
+            "method": "GET",
+            "url": "{{notification_service_url}}/notifications"
+          }
+        }
+      ]
+    }
+  ]
+}
